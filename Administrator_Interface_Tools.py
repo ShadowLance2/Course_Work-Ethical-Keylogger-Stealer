@@ -11,6 +11,7 @@ from psycopg2 import sql
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
+from kivy.clock import Clock
 
 class EmailExtractor(App):
 
@@ -21,6 +22,16 @@ class EmailExtractor(App):
         self.submit_button.bind(on_press=self.on_submit)
         self.insert_button = Button(text='Вставить данные', size_hint=(1, 0.2))
         self.insert_button.bind(on_press=self.on_insert)
+        self.interval_input_insert = TextInput(hint_text='Интервал вставки (в секундах)', size_hint=(1, 0.2))
+        self.start_auto_insert_button = Button(text='Старт авто вставки', size_hint=(1, 0.2))
+        self.start_auto_insert_button.bind(on_press=self.start_auto_insert)
+        self.stop_auto_insert_button = Button(text='Остановить авто вставку', size_hint=(1, 0.2))
+        self.stop_auto_insert_button.bind(on_press=self.stop_auto_insert)
+        self.interval_input_extract = TextInput(hint_text='Интервал извлечения (в секундах)', size_hint=(1, 0.2))
+        self.start_auto_extract_button = Button(text='Старт авто извлечения', size_hint=(1, 0.2))
+        self.start_auto_extract_button.bind(on_press=self.start_auto_extract)
+        self.stop_auto_extract_button = Button(text='Остановить авто извлечение', size_hint=(1, 0.2))
+        self.stop_auto_extract_button.bind(on_press=self.stop_auto_extract)
         self.output_label = Label(text='', size_hint=(1, 0.3))
 
         layout = BoxLayout(orientation='vertical')
@@ -28,6 +39,12 @@ class EmailExtractor(App):
         layout.add_widget(self.password_input)
         layout.add_widget(self.submit_button)
         layout.add_widget(self.insert_button)
+        layout.add_widget(self.interval_input_insert)
+        layout.add_widget(self.start_auto_insert_button)
+        layout.add_widget(self.stop_auto_insert_button)
+        layout.add_widget(self.interval_input_extract)
+        layout.add_widget(self.start_auto_extract_button)
+        layout.add_widget(self.stop_auto_extract_button)
         layout.add_widget(self.output_label)
 
         tables = self.show_all_tables()
@@ -165,7 +182,7 @@ class EmailExtractor(App):
 
         with open("filtered_data.txt", "r") as file:
             content = file.read()
-            self.output_label.text = content
+            self.output_label.text = "Данные успешно извлечены."
 
     def on_insert(self, instance):
         connection = self.connect_to_database()
@@ -188,10 +205,13 @@ class EmailExtractor(App):
 
                 if successful_insertions > 0:
                     self.output_label.text = f"Уникальные данные были вставлены в базу данных. Количество успешных вставок: {successful_insertions}"
+                    self.show_success_popup(f"Добавлено {successful_insertions} новых строки в базу данных.")
                 else:
                     self.output_label.text = "Ошибка при вставке данных в базу данных. Все данные уже представлены в БД и не могут быть вставлены повторно."
 
             connection.close()
+
+        return successful_insertions
 
     def connect_to_database(self):
         try:
@@ -259,7 +279,7 @@ class EmailExtractor(App):
                 cursor = connection.cursor()
                 cursor.execute(f"SELECT * FROM {table_name}")
                 rows = cursor.fetchall()
-                column_names = [desc[0] for desc in cursor.description]  # Получим имена столбцов
+                column_names = [desc[0] for desc in cursor.description]
 
                 connection.close()
 
@@ -291,6 +311,52 @@ class EmailExtractor(App):
     def show_error_popup(self, message):
         popup = Popup(title="Ошибка", content=Label(text=message), size_hint=(0.4, 0.4))
         popup.open()
+
+    def show_success_popup(self, message):
+        popup = Popup(title="Успех", content=Label(text=message), size_hint=(0.4, 0.4))
+        popup.open()
+
+    def start_auto_insert(self, instance):
+        interval = self.interval_input_insert.text
+        try:
+            interval = int(interval)
+            if interval <= 0:
+                self.show_error_popup("Ошибка: Введите положительное число для интервала вставки.")
+                return
+        except ValueError:
+            self.show_error_popup("Ошибка: Введите число для интервала вставки.")
+            return
+
+        self.auto_insert_event = Clock.schedule_interval(self.auto_insert_data, interval)
+
+    def stop_auto_insert(self, instance):
+        if self.auto_insert_event:
+            self.auto_insert_event.cancel()
+
+    def auto_insert_data(self, dt):
+        successful_insertions = self.on_insert(None)
+        if successful_insertions is not None and successful_insertions > 0:
+            self.show_success_popup(f"Добавлено {successful_insertions} новых строки в базу данных.")
+
+    def start_auto_extract(self, instance):
+        interval = self.interval_input_extract.text
+        try:
+            interval = int(interval)
+            if interval <= 0:
+                self.show_error_popup("Ошибка: Введите положительное число для интервала извлечения.")
+                return
+        except ValueError:
+            self.show_error_popup("Ошибка: Введите число для интервала извлечения.")
+            return
+
+        self.auto_extract_event = Clock.schedule_interval(self.auto_extract_data, interval)
+
+    def stop_auto_extract(self, instance):
+        if self.auto_extract_event:
+            self.auto_extract_event.cancel()
+
+    def auto_extract_data(self, dt):
+        self.on_submit(None)
 
 if __name__ == "__main__":
     EmailExtractor().run()

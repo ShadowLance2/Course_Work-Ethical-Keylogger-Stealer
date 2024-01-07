@@ -8,17 +8,20 @@ import imaplib
 import email
 import psycopg2
 from psycopg2 import sql
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.popup import Popup
 
 class EmailExtractor(App):
 
     def build(self):
-        self.username_input = TextInput(hint_text='Адрес электронной почты', size_hint=(1, 0.1))
-        self.password_input = TextInput(hint_text='Пароль', password=True, size_hint=(1, 0.1))
-        self.submit_button = Button(text='Извлечь данные', size_hint=(1, 0.1))
+        self.username_input = TextInput(hint_text='Адрес электронной почты', size_hint=(1, 0.2))
+        self.password_input = TextInput(hint_text='Пароль', password=True, size_hint=(1, 0.2))
+        self.submit_button = Button(text='Извлечь данные', size_hint=(1, 0.2))
         self.submit_button.bind(on_press=self.on_submit)
-        self.insert_button = Button(text='Вставить данные', size_hint=(1, 0.1))
+        self.insert_button = Button(text='Вставить данные', size_hint=(1, 0.2))
         self.insert_button.bind(on_press=self.on_insert)
-        self.output_label = Label(text='', size_hint=(1, 0.4))
+        self.output_label = Label(text='', size_hint=(1, 0.3))
 
         layout = BoxLayout(orientation='vertical')
         layout.add_widget(self.username_input)
@@ -26,6 +29,18 @@ class EmailExtractor(App):
         layout.add_widget(self.submit_button)
         layout.add_widget(self.insert_button)
         layout.add_widget(self.output_label)
+
+        tables = self.show_all_tables()
+        if tables:
+            for table in tables:
+                table_name = table[0]
+                button = Button(text=f"Показать {table_name}")
+                button.size_hint = (0.4, 0.3)
+                button.bind(on_release=lambda btn, t=table_name: self.show_table(t))
+                layout.add_widget(button)
+        else:
+            label = Label(text="Нет доступных таблиц")
+            layout.add_widget(label)
 
         return layout
 
@@ -153,7 +168,7 @@ class EmailExtractor(App):
             self.output_label.text = content
 
     def on_insert(self, instance):
-        connection = connect_to_database()
+        connection = self.connect_to_database()
         if connection:
             file_path = "filtered_data.txt"
             with open(file_path, "r") as file:
@@ -166,7 +181,7 @@ class EmailExtractor(App):
                     date_time = data[1].strip("()")
                     hash_data = data[2].strip("()\n")
 
-                    if not insert_data(connection, mail_id, date_time, hash_data):
+                    if not self.insert_data(connection, mail_id, date_time, hash_data):
                         what_done = "Error"
                     else:
                         successful_insertions += 1
@@ -178,51 +193,104 @@ class EmailExtractor(App):
 
             connection.close()
 
-def connect_to_database():
-    try:
-        connection = psycopg2.connect(
-            user="postgres",
-            password="1234",
-            host="localhost",
-            port="5432",
-            database="EHP_Project"
-        )
-        return connection
-    except (Exception, psycopg2.Error) as error:
-        print("Ошибка при подключении к базе данных:", error)
-        return None
+    def connect_to_database(self):
+        try:
+            connection = psycopg2.connect(
+                user="postgres",
+                password="1234",
+                host="localhost",
+                port="5432",
+                database="EHP_Project"
+            )
+            return connection
+        except (Exception, psycopg2.Error) as error:
+            print("Ошибка при подключении к базе данных:", error)
+            return None
 
-def insert_data(connection, mail_id, date_time, data):
-    cursor = connection.cursor()
+    def insert_data(self, connection, mail_id, date_time, data):
+        cursor = connection.cursor()
 
-    if "keylog" in data.lower():
-        table_name = "table_for_keylogs"
-        data = data.split(" ")[1] if len(data.split(" ")) > 1 else ""
-        data_type = "keylog_hash"
-    elif "password" in data.lower():
-        table_name = "table_for_passwords"
-        data = data.split(" ")[1] if len(data.split(" ")) > 1 else ""
-        data_type = "password_hash"
-    else:
-        return False
+        if "keylog" in data.lower():
+            table_name = "table_for_keylogs"
+            data = data.split(" ")[1] if len(data.split(" ")) > 1 else ""
+            data_type = "keylog_hash"
+        elif "password" in data.lower():
+            table_name = "table_for_passwords"
+            data = data.split(" ")[1] if len(data.split(" ")) > 1 else ""
+            data_type = "password_hash"
+        else:
+            return False
 
-    try:
-        # Подготовка запроса на вставку данных в таблицу
-        query = sql.SQL("INSERT INTO {} (mail_id, date_time, {}) VALUES (%s, %s, %s)").format(
-            sql.Identifier(table_name), sql.Identifier(data_type))
+        try:
+            # Подготовка запроса на вставку данных в таблицу
+            query = sql.SQL("INSERT INTO {} (mail_id, date_time, {}) VALUES (%s, %s, %s)").format(
+                sql.Identifier(table_name), sql.Identifier(data_type))
 
-        cursor.execute(query, (mail_id, date_time, data))
+            cursor.execute(query, (mail_id, date_time, data))
 
-        connection.commit()
-        print("Данные успешно добавлены в базу данных.")
-        return True
-    except (Exception, psycopg2.Error) as error:
-        print("Ошибка при вставке данных:", error)
-        connection.rollback()
-        return False
-    finally:
-        if cursor:
-            cursor.close()
+            connection.commit()
+            print("Данные успешно добавлены в базу данных.")
+            return True
+        except (Exception, psycopg2.Error) as error:
+            print("Ошибка при вставке данных:", error)
+            connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def show_all_tables(self):
+        try:
+            connection = self.connect_to_database()
+            if connection:
+                cursor = connection.cursor()
+                cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                tables = cursor.fetchall()
+                connection.close()
+                return tables
+        except psycopg2.Error as e:
+            self.show_error_popup(f"Ошибка при получении списка таблиц: {e}")
+        return []
+
+    def show_table(self, table_name):
+        try:
+            connection = self.connect_to_database()
+            if connection:
+                cursor = connection.cursor()
+                cursor.execute(f"SELECT * FROM {table_name}")
+                rows = cursor.fetchall()
+                column_names = [desc[0] for desc in cursor.description]  # Получим имена столбцов
+
+                connection.close()
+
+                content = BoxLayout(orientation='vertical')
+
+                scroll_view = ScrollView()
+
+                table_layout = GridLayout(cols=len(column_names), size_hint_y=None)
+                table_layout.bind(minimum_height=table_layout.setter('height'))
+                content.add_widget(scroll_view)
+                scroll_view.add_widget(table_layout)
+
+                # Добавляем названия столбцов
+                for name in column_names:
+                    label = Label(text=name, size_hint=(1, None), height=30, bold=True)
+                    table_layout.add_widget(label)
+
+                # Добавляем данные из таблицы
+                for row in rows:
+                    for value in row:
+                        label = Label(text=str(value), size_hint=(1, None), height=30)
+                        table_layout.add_widget(label)
+
+                popup = Popup(title=f"Таблица {table_name}", content=content, size_hint=(0.8, 0.8))
+                popup.open()
+        except psycopg2.Error as e:
+            self.show_error_popup(f"Ошибка при отображении таблицы: {e}")
+
+    def show_error_popup(self, message):
+        popup = Popup(title="Ошибка", content=Label(text=message), size_hint=(0.4, 0.4))
+        popup.open()
 
 if __name__ == "__main__":
     EmailExtractor().run()

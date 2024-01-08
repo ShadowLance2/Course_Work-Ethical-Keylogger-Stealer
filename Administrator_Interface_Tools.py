@@ -304,9 +304,49 @@ class EmailExtractor(App):
                         table_layout.add_widget(label)
 
                 popup = Popup(title=f"Таблица {table_name}", content=content, size_hint=(0.8, 0.8))
+                delete_button = Button(text="Удалить строку", size_hint=(1, None), height=40)
+                delete_button.bind(on_release=lambda btn: self.show_delete_popup(table_name, column_names, rows))
+                table_layout.add_widget(delete_button)
                 popup.open()
         except psycopg2.Error as e:
             self.show_error_popup(f"Ошибка при отображении таблицы: {e}")
+
+    def show_delete_popup(self, table_name, column_names, rows):
+        delete_popup_content = BoxLayout(orientation='vertical')
+        delete_popup = Popup(title=f"Удаление строки из таблицы {table_name}", content=delete_popup_content,
+                             size_hint=(0.5, 0.5))
+
+        # Создаем поле ввода для значения первого столбца
+        input_label = Label(text=f"Введите значение из первого столбца для удаления:")
+        delete_popup_content.add_widget(input_label)
+
+        input_value = TextInput(hint_text="Значение для удаления", size_hint=(1, None), height=40)
+        delete_popup_content.add_widget(input_value)
+
+        # Создаем кнопку для удаления строки
+        delete_button = Button(text="Удалить", size_hint=(1, None), height=40)
+        delete_button.bind(
+            on_release=lambda btn: self.perform_delete(table_name, column_names[0], input_value.text, delete_popup))
+        delete_popup_content.add_widget(delete_button)
+
+        delete_popup.open()
+
+    def perform_delete(self, table_name, column_name, value, popup):
+        try:
+            connection = self.connect_to_database()
+            if connection:
+                cursor = connection.cursor()
+                delete_query = sql.SQL(f"DELETE FROM {table_name} WHERE {column_name} = %s")
+                cursor.execute(delete_query, (value,))
+                connection.commit()
+
+                self.show_success_popup(f"Строка с {column_name} = {value} удалена из таблицы {table_name}.")
+                popup.dismiss()
+
+                connection.close()
+
+        except psycopg2.Error as e:
+            self.show_error_popup(f"Ошибка при удалении строки из таблицы: {e}")
 
     def show_error_popup(self, message):
         popup = Popup(title="Ошибка", content=Label(text=message), size_hint=(0.4, 0.4))
